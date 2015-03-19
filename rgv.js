@@ -21,6 +21,7 @@
         nextURL:      null,
         opacity:      0.9,
         posts:        [],
+        prefix:       'redditGridView_',
         prevURL:      null,
         title:        $title.text(),
       },
@@ -206,7 +207,8 @@
         .css({
           margin: 0,
           padding: 0
-        }),
+        })
+        .click(toggleFlashTileOnAdd),
 
       $flashTileOnAddLabel = $('<label>')
         .attr('for', 'flashTileOnAdd')
@@ -289,6 +291,15 @@
         .append($left)
         .append($right);
 
+  if (getSetting('flashTileOnAdd', false))
+    $flashTileOnAddCheckbox.attr('checked', 'checked');
+
+  if (getSetting('liveUpdates', false))
+    $liveUpdateCheckbox.attr('checked', 'checked');
+
+  if (getSetting('onlyImages', false))
+    $onlyImagesCheckbox.attr('checked', 'checked');
+
   if (gridView.prevURL == null)
     $prev.hide();
 
@@ -344,6 +355,134 @@
    */
   function clearViewport() {
     $('div.tile').remove();
+  }
+
+  /**
+   * Attempt to download JSON data from the current sub-reddit.
+   */
+  function fetchNewPosts() {
+    gridView.liveIndex--;
+
+    if (gridView.liveIndex > 0)
+      $('span.liveUpdateStatus').text('Checking for new posts in ' + gridView.liveIndex + ' second' + (gridView.liveIndex != 1 ? 's' : ''));
+    else
+      $('span.liveUpdateStatus').text('Checking for new posts...');
+
+    if (gridView.liveIndex > 0)
+      return;
+
+    if (gridView.liveIndex == 0)
+      gridView.liveIndex = 10;
+
+    var url = window.location.href;
+
+    if (url.slice(-1) == '/')
+      url = url.substr(0, url.length -1);
+
+    url += '.json';
+
+    $.ajax({
+      type: 'GET',
+      url: url,
+      success: function (json) {
+        if (json &&
+            json.data &&
+            json.data.children &&
+            json.data.children.length > 0) {
+
+          for (var i = 0; i < json.data.children.length; i++) {
+            var dp    = json.data.children[i].data,
+                found = false;
+
+            gridView.posts.forEach(function (post) {
+              if (post.id == dp.name)
+                found = true;
+            });
+
+            if (found)
+              continue;
+
+            var gallery  = false,
+                imageURL = dp.url;
+
+            // Determine if the found URL is an image, ready for background preview.
+            var imageTriggers = [
+                  '.jpg',
+                  '.jpeg',
+                  '.gif',
+                  '.png',
+                  'imgur.com'
+                ],
+                imageCancelers = [
+                  '.gifv',
+                  '/a/',
+                  '/gallery/'
+                ];
+
+            if (imageTriggers.some(function (value) { return imageURL.indexOf(value) > -1; })) {
+              if (imageCancelers.some(function (value) { return imageURL.indexOf(value) > -1 })) {
+                imageURL = null;
+                gallery = true;
+              }
+              else {
+                if (imageURL.slice(-1) == '?')
+                  imageURL = imageURL.substr(0, imageURL.length -1);
+
+                var imageExtensions = [
+                      '.jpg',
+                      '.jpeg',
+                      '.gif',
+                      '.png'
+                    ];
+
+                if (!imageExtensions.some(function (value) { return imageURL.indexOf(value) > -1; })) {
+                  imageURL += '.png';
+                }
+              }
+            }
+            else {
+              imageURL = null;
+            }
+
+            var post = {
+              author:      dp.author,
+              comments:    dp.num_comments,
+              commentsURL: dp.permalink,
+              contentURL:  dp.url,
+              gallery:     gallery,
+              id:          dp.name,
+              imageURL:    imageURL,
+              isNSFW:      false,
+              points:      dp.score,
+              submitted:   dp.created_utc,
+              subreddit:   dp.subreddit,
+              title:       dp.title
+            };
+
+            gridView.posts.unshift(post);
+
+            populateViewportPost($('article.viewport'), post, true, $('input#flashTileOnAdd').is(':checked'));
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Get a setting by its name.
+   *
+   * @param string name
+   *   Name of the setting.
+   * @param obj defaultValue
+   *   The default value to return if none is found in storage.
+   */
+  function getSetting(name, defaultValue) {
+    var value = localStorage.getItem(gridView.prefix + name);
+
+    if (typeof value == 'undefined')
+      value = defaultValue;
+
+    return value;
   }
 
   /**
@@ -626,6 +765,25 @@
   }
 
   /**
+   * Save a setting to the local storage.
+   *
+   * @param string name
+   *   The name of the setting.
+   * @param obj value
+   *   The object to save.
+   */
+  function setSetting(name, value) {
+    localStorage.setItem(gridView.prefix + name, value);
+  }
+
+  /**
+   * Saves the setting for flashing of tiles on add.
+   */
+  function toggleFlashTileOnAdd() {
+    setSetting('flashTileOnAdd', $(this).is(':checked'));
+  }
+
+  /**
    * Toggles which kinds of tiles are visible.
    */
   function toggleImages() {
@@ -633,6 +791,8 @@
       $('div.textTile').hide();
     else
       $('div.textTile').show();
+
+    setSetting('onlyImages', $(this).is(':checked'));
   }
 
   /**
@@ -665,116 +825,7 @@
           color: '#999'
         });
     }
-  }
 
-  /**
-   * Attempt to download JSON data from the current sub-reddit.
-   */
-  function fetchNewPosts() {
-    gridView.liveIndex--;
-
-    if (gridView.liveIndex > 0)
-      $('span.liveUpdateStatus').text('Checking for new posts in ' + gridView.liveIndex + ' second' + (gridView.liveIndex != 1 ? 's' : ''));
-    else
-      $('span.liveUpdateStatus').text('Checking for new posts...');
-
-    if (gridView.liveIndex > 0)
-      return;
-
-    if (gridView.liveIndex == 0)
-      gridView.liveIndex = 10;
-
-    var url = window.location.href;
-
-    if (url.slice(-1) == '/')
-      url = url.substr(0, url.length -1);
-
-    url += '.json';
-
-    $.ajax({
-      type: 'GET',
-      url: url,
-      success: function (json) {
-        if (json &&
-            json.data &&
-            json.data.children &&
-            json.data.children.length > 0) {
-
-          for (var i = 0; i < json.data.children.length; i++) {
-            var dp    = json.data.children[i].data,
-                found = false;
-
-            gridView.posts.forEach(function (post) {
-              if (post.id == dp.name)
-                found = true;
-            });
-
-            if (found)
-              continue;
-
-            var gallery  = false,
-                imageURL = dp.url;
-
-            // Determine if the found URL is an image, ready for background preview.
-            var imageTriggers = [
-                  '.jpg',
-                  '.jpeg',
-                  '.gif',
-                  '.png',
-                  'imgur.com'
-                ],
-                imageCancelers = [
-                  '.gifv',
-                  '/a/',
-                  '/gallery/'
-                ];
-
-            if (imageTriggers.some(function (value) { return imageURL.indexOf(value) > -1; })) {
-              if (imageCancelers.some(function (value) { return imageURL.indexOf(value) > -1 })) {
-                imageURL = null;
-                gallery = true;
-              }
-              else {
-                if (imageURL.slice(-1) == '?')
-                  imageURL = imageURL.substr(0, imageURL.length -1);
-
-                var imageExtensions = [
-                      '.jpg',
-                      '.jpeg',
-                      '.gif',
-                      '.png'
-                    ];
-
-                if (!imageExtensions.some(function (value) { return imageURL.indexOf(value) > -1; })) {
-                  imageURL += '.png';
-                }
-              }
-            }
-            else {
-              imageURL = null;
-            }
-
-            var post = {
-              author:      dp.author,
-              comments:    dp.num_comments,
-              commentsURL: dp.permalink,
-              contentURL:  dp.url,
-              gallery:     gallery,
-              id:          dp.name,
-              imageURL:    imageURL,
-              isNSFW:      false,
-              points:      dp.score,
-              submitted:   dp.created_utc,
-              subreddit:   dp.subreddit,
-              title:       dp.title
-            };
-
-            gridView.posts.unshift(post);
-
-            populateViewportPost($('article.viewport'), post, true, $('input#flashTileOnAdd').is(':checked'));
-          }
-        }
-      }
-    })
+    setSetting('liveUpdates', $(this).is(':checked'));
   }
 })(window);
