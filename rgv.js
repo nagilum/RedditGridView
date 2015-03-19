@@ -9,6 +9,8 @@
         animSpeedIn:  200,
         animSpeedOut: 100,
         boxSize:      300,
+        flashSpeed:   250,
+        flashLoops:   4,
         fontSize:     14,
         fontSizeBig:  18,
         href:         window.location.href,
@@ -169,6 +171,26 @@
           marginRight: 30
         }),
 
+      $flashTileOnAddCheckbox = $('<input>')
+        .attr('id', 'flashTileOnAdd')
+        .attr('type', 'checkbox')
+        .attr('disabled', 'disabled')
+        .css({
+          margin: 0,
+          padding: 0
+        }),
+
+      $flashTileOnAddLabel = $('<label>')
+        .attr('for', 'flashTileOnAdd')
+        .attr('disabled', 'disabled')
+        .css({
+          color: '#999',
+          fontSize: gridView.fontSize,
+          marginLeft: 3,
+          marginRight: 30
+        })
+        .text('Flash Tile On Add'),
+
       $liveUpdateCheckbox = $('<input>')
         .attr('id', 'liveUpdate')
         .attr('type', 'checkbox')
@@ -217,6 +239,8 @@
           float: 'right'
         })
         .append($liveUpdateStatus)
+        .append($flashTileOnAddCheckbox)
+        .append($flashTileOnAddLabel)
         .append($liveUpdateCheckbox)
         .append($liveUpdateLabel)
         .append($onlyImagesCheckbox)
@@ -288,7 +312,7 @@
    */
   function populateViewport($article) {
     gridView.posts.forEach(function (post) {
-      populateViewportPost($article, post, false);
+      populateViewportPost($article, post, false, false);
     });
   }
 
@@ -301,8 +325,10 @@
    *   The post to add as a tile.
    * @param bool prepend
    *   To prepend or append the post.
+   * @param bool flash
+   *   Flash the tile-frame to indicate it's been added.
    */
-  function populateViewportPost($article, post, prepend) {
+  function populateViewportPost($article, post, prepend, flash) {
       var animate = (post.imageURL != null || post.gallery),
 
           $titleLink = $('<a>')
@@ -483,6 +509,23 @@
         $article.prepend($tile);
       else
         $article.append($tile);
+
+      if (flash) {
+        $.when(
+          $tile.animate({ opacity: 0 }, gridView.flashSpeed).promise(),
+          $tile.animate({ opacity: gridView.opacity }, gridView.flashSpeed).promise(),
+
+          $tile.animate({ opacity: 0 }, gridView.flashSpeed).promise(),
+          $tile.animate({ opacity: gridView.opacity }, gridView.flashSpeed).promise(),
+
+          $tile.animate({ opacity: 0 }, gridView.flashSpeed).promise(),
+          $tile.animate({ opacity: gridView.opacity }, gridView.flashSpeed).promise(),
+
+          $tile.animate({ opacity: 0 }, gridView.flashSpeed).promise(),
+          $tile.animate({ opacity: gridView.opacity }, gridView.flashSpeed).promise()
+        ).done(function () {
+        });
+      }
   }
 
   /**
@@ -504,10 +547,26 @@
     if (gridView.liveUpdate) {
       gridView.liveIndex = 10;
       gridView.liveTimer = setInterval(fetchNewPosts, 1000);
+
+      $('input#flashTileOnAdd')
+        .attr('disabled', false)
+        .next()
+        .attr('disabled', false)
+        .css({
+          color: '#000'
+        });
     }
     else {
       clearInterval(gridView.liveTimer);
       $('span.liveUpdateStatus').text('');
+
+      $('input#flashTileOnAdd')
+        .attr('disabled', 'disabled')
+        .next()
+        .attr('disabled', 'disabled')
+        .css({
+          color: '#999'
+        });
     }
   }
 
@@ -615,7 +674,7 @@
 
             gridView.posts.unshift(post);
 
-            populateViewportPost($('article.viewport'), post, true);
+            populateViewportPost($('article.viewport'), post, true, $('input#flashTileOnAdd').is(':checked'));
           }
         }
       }
