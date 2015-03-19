@@ -52,9 +52,11 @@
         $subreddit = $('a.subreddit', $post),
         $title     = $('a.title', $post),
         comments   = parseInt($comments.text().substr(0, $comments.text().indexOf(' ')), 10),
+        embed      = false,
+        embedURL   = '',
         gallery    = false,
         id         = $post.attr('data-fullname'),
-        imageURL   = $title.attr('href'),
+        imageURL   = $title.attr('href').replace('http:', '').replace('https:', ''),
         points     = parseInt($score.text().substr(0, $score.text().indexOf(' ')), 10);
 
     if (isNaN(comments))
@@ -71,14 +73,33 @@
           '.png',
           'imgur.com'
         ],
-        imageCancelers = [
-          '.gifv',
-          '/a/',
+        imageAlbum = [
+          '/a/'
+        ],
+        imageGallery = [
           '/gallery/'
+        ],
+        imageGifVideo = [
+          '.gifv'
         ];
 
     if (imageTriggers.some(function (value) { return imageURL.indexOf(value) > -1; })) {
-      if (imageCancelers.some(function (value) { return imageURL.indexOf(value) > -1 })) {
+      if (imageAlbum.some(function (value) { return imageURL.indexOf(value) > -1 })) {
+        embedURL = imageURL;
+
+        if (embedURL.slice(-1) !== '/')
+          embedURL += '/';
+
+        embedURL += 'embed';
+
+        imageURL = null;
+        embed = true;
+      }
+      else if (imageGallery.some(function (value) { return imageURL.indexOf(value) > -1 })) {
+        imageURL = null;
+        gallery = true;
+      }
+      else if (imageGifVideo.some(function (value) { return imageURL.indexOf(value) > -1 })) {
         imageURL = null;
         gallery = true;
       }
@@ -108,6 +129,8 @@
       comments:    comments,
       commentsURL: $comments.attr('href'),
       contentURL:  $title.attr('href'),
+      embed:       embed,
+      embedURL:    embedURL,
       gallery:     gallery,
       id:          id,
       imageURL:    imageURL,
@@ -359,8 +382,30 @@
             .css({
               height: gridView.boxSize,
               width: gridView.boxSize
-            })
-            .append($sectionLink);
+            });
+
+      if (post.embed) {
+        $sectionLink
+          .css({
+            position: 'absolute'
+          });
+
+        var $embed = $('<iframe>')
+          .attr('src', post.embedURL)
+          .css({
+            height: gridView.boxSize,
+            position: 'absolute',
+            width: gridView.boxSize
+          });
+
+        $section
+          .append($embed)
+          .append($sectionLink);
+      }
+      else {
+        $section
+          .append($sectionLink);
+      }
 
       var $pointsAndComments = $('<a>')
             .attr('href', post.commentsURL)
