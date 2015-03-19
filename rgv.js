@@ -74,7 +74,8 @@
           '.jpeg',
           '.gif',
           '.png',
-          'imgur.com'
+          'imgur.com',
+          'gfycat.com'
         ],
         imageAlbum = [
           '/a/'
@@ -83,7 +84,8 @@
           '/gallery/'
         ],
         imageGifVideo = [
-          '.gifv'
+          '.gifv',
+          'gfycat.com'
         ];
 
     if (imageTriggers.some(function (value) { return imageURL.indexOf(value) > -1; })) {
