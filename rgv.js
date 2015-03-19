@@ -164,22 +164,28 @@
 
   // Construct the grid-view interface.
   var $prev = $('<a>')
-        .attr('href', gridView.prevURL)
+        .addClass('prevPage')
+        .attr('data-href', gridView.prevURL)
         .css({
+          cursor: 'pointer',
           display: 'inline-block',
           fontSize: gridView.fontSize,
           paddingRight: 10
         })
-        .text('Prev'),
+        .text('Prev')
+        .click(clearAndFetchPosts),
 
       $next = $('<a>')
-        .attr('href', gridView.nextURL)
+        .addClass('nextPage')
+        .attr('data-href', gridView.nextURL)
         .css({
+          cursor: 'pointer',
           display: 'inline-block',
           fontSize: gridView.fontSize,
           paddingRight: 30
         })
-        .text('Next'),
+        .text('Next')
+        .click(clearAndFetchPosts),
 
       $info = $('<span>')
         .css({
@@ -355,6 +361,94 @@
   });
 
   /**
+   * Cycles JSON response and performs magic!
+   *
+   * @param json json
+   *   A list of posts.
+   */
+  function analyzeJsonResponse(json) {
+    if (json &&
+        json.data &&
+        json.data.children &&
+        json.data.children.length > 0) {
+
+      for (var i = 0; i < json.data.children.length; i++) {
+        var dp    = json.data.children[i].data,
+            found = false;
+
+        gridView.posts.forEach(function (post) {
+          if (post.id == dp.name)
+            found = true;
+        });
+
+        if (found)
+          continue;
+
+        var gallery  = false,
+            imageURL = dp.url;
+
+        // Determine if the found URL is an image, ready for background preview.
+        var imageTriggers = [
+              '.jpg',
+              '.jpeg',
+              '.gif',
+              '.png',
+              'imgur.com'
+            ],
+            imageCancelers = [
+              '.gifv',
+              '/a/',
+              '/gallery/'
+            ];
+
+        if (imageTriggers.some(function (value) { return imageURL.indexOf(value) > -1; })) {
+          if (imageCancelers.some(function (value) { return imageURL.indexOf(value) > -1 })) {
+            imageURL = null;
+            gallery = true;
+          }
+          else {
+            if (imageURL.slice(-1) == '?')
+              imageURL = imageURL.substr(0, imageURL.length -1);
+
+            var imageExtensions = [
+                  '.jpg',
+                  '.jpeg',
+                  '.gif',
+                  '.png'
+                ];
+
+            if (!imageExtensions.some(function (value) { return imageURL.indexOf(value) > -1; })) {
+              imageURL += '.png';
+            }
+          }
+        }
+        else {
+          imageURL = null;
+        }
+
+        var post = {
+          author:      dp.author,
+          comments:    dp.num_comments,
+          commentsURL: dp.permalink,
+          contentURL:  dp.url,
+          gallery:     gallery,
+          id:          dp.name,
+          imageURL:    imageURL,
+          isNSFW:      false,
+          points:      dp.score,
+          submitted:   dp.created_utc,
+          subreddit:   dp.subreddit,
+          title:       dp.title
+        };
+
+        gridView.posts.unshift(post);
+
+        populateViewportPost($('article.viewport'), post, true, $('input#flashTileOnAdd').is(':checked'));
+      }
+    }
+  }
+
+  /**
    * Clears the viewport of all added tiles.
    */
   function clearViewport() {
@@ -389,83 +483,58 @@
       type: 'GET',
       url: url,
       success: function (json) {
+        analyzeJsonResponse(json);
+      }
+    });
+  }
+
+  /**
+   * Attempt to fetch a new batch of posts by pagination.
+   */
+  function clearAndFetchPosts() {
+    var $a  = $(this),
+        url = $a.attr('data-href').replace('/?', '.json?');
+
+    $.ajax({
+      type: 'GET',
+      url: url,
+      success: function (json) {
+        clearViewport();
+        gridView.posts = [];
+        analyzeJsonResponse(json);
+
         if (json &&
-            json.data &&
-            json.data.children &&
-            json.data.children.length > 0) {
+            json.data) {
+          if (json.data.before) {
+            url = window.location.href;
 
-          for (var i = 0; i < json.data.children.length; i++) {
-            var dp    = json.data.children[i].data,
-                found = false;
+            if (url.slice(-1) == '/')
+              url = url.substr(0, url.length -1);
 
-            gridView.posts.forEach(function (post) {
-              if (post.id == dp.name)
-                found = true;
-            });
+            url += '.json?count=100&before=' + json.data.before;
 
-            if (found)
-              continue;
+            $('a.prevPage')
+              .attr('data-href', url)
+              .show();
+          }
+          else {
+            $('a.prevPage').hide();
+          }
 
-            var gallery  = false,
-                imageURL = dp.url;
+          if (json.data.after) {
+            url = window.location.href;
 
-            // Determine if the found URL is an image, ready for background preview.
-            var imageTriggers = [
-                  '.jpg',
-                  '.jpeg',
-                  '.gif',
-                  '.png',
-                  'imgur.com'
-                ],
-                imageCancelers = [
-                  '.gifv',
-                  '/a/',
-                  '/gallery/'
-                ];
+            if (url.slice(-1) == '/')
+              url = url.substr(0, url.length -1);
 
-            if (imageTriggers.some(function (value) { return imageURL.indexOf(value) > -1; })) {
-              if (imageCancelers.some(function (value) { return imageURL.indexOf(value) > -1 })) {
-                imageURL = null;
-                gallery = true;
-              }
-              else {
-                if (imageURL.slice(-1) == '?')
-                  imageURL = imageURL.substr(0, imageURL.length -1);
+            url += '.json?count=100&after=' + json.data.after;
 
-                var imageExtensions = [
-                      '.jpg',
-                      '.jpeg',
-                      '.gif',
-                      '.png'
-                    ];
-
-                if (!imageExtensions.some(function (value) { return imageURL.indexOf(value) > -1; })) {
-                  imageURL += '.png';
-                }
-              }
-            }
-            else {
-              imageURL = null;
-            }
-
-            var post = {
-              author:      dp.author,
-              comments:    dp.num_comments,
-              commentsURL: dp.permalink,
-              contentURL:  dp.url,
-              gallery:     gallery,
-              id:          dp.name,
-              imageURL:    imageURL,
-              isNSFW:      false,
-              points:      dp.score,
-              submitted:   dp.created_utc,
-              subreddit:   dp.subreddit,
-              title:       dp.title
-            };
-
-            gridView.posts.unshift(post);
-
-            populateViewportPost($('article.viewport'), post, true, $('input#flashTileOnAdd').is(':checked'));
+            $('a.nextPage')
+              .attr('data-href', url)
+              .show();
+          }
+          else {
+            $('a.nextPage').hide();
           }
         }
       }
