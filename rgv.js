@@ -84,8 +84,7 @@
           '/gallery/'
         ],
         imageGifVideo = [
-          '.gifv',
-          'gfycat.com'
+          '.gifv'
         ];
 
     if (imageTriggers.some(function (value) { return imageURL.indexOf(value) > -1; })) {
@@ -112,6 +111,9 @@
       else {
         if (imageURL.slice(-1) == '?')
           imageURL = imageURL.substr(0, imageURL.length -1);
+
+        if (imageURL.indexOf('gfycat.com') > -1)
+          imageURL = imageURL.replace('gfycat.com', 'giant.gfycat.com') + '.gif';
 
         var imageExtensions = [
               '.jpg',
