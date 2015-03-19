@@ -55,6 +55,8 @@
         embed      = false,
         embedURL   = '',
         gallery    = false,
+        gifVideo   = false,
+        gifvURL    = '',
         id         = $post.attr('data-fullname'),
         imageURL   = $title.attr('href').replace('http:', '').replace('https:', ''),
         points     = parseInt($score.text().substr(0, $score.text().indexOf(' ')), 10);
@@ -100,8 +102,9 @@
         gallery = true;
       }
       else if (imageGifVideo.some(function (value) { return imageURL.indexOf(value) > -1 })) {
+        gifvURL = imageURL;
         imageURL = null;
-        gallery = true;
+        gifVideo = true;
       }
       else {
         if (imageURL.slice(-1) == '?')
@@ -132,6 +135,8 @@
       embed:       embed,
       embedURL:    embedURL,
       gallery:     gallery,
+      gifVideo:    gifVideo,
+      gifvURL:     gifvURL,
       id:          id,
       imageURL:    imageURL,
       isNSFW:      ($nsfw.length > 0),
@@ -310,7 +315,8 @@
   // Marginalize headers on tiles properly.
   $('div.tile').each(function () {
     var $tile               = $(this),
-        $header             = $('header', $tile),
+        $header             = $tile.find('header'),
+        $section            = $tile.find('section'),
         headerHeight        = $header.height(),
         headerPaddingTop    = parseInt($header.css('padding-top'), 10),
         headerPaddingBottom = parseInt($header.css('padding-bottom'), 10);
@@ -318,6 +324,19 @@
     $header.css({
       marginTop: (0 - (headerHeight + headerPaddingTop + headerPaddingBottom))
     });
+
+    if ($tile.attr('data-is-embed') ||
+        $tile.attr('data-is-gifv')) {
+      var $iframe = $section.find('iframe.embed'),
+          $sclink = $section.find('a.sectionLink');
+
+      $iframe.css({
+        marginTop: -1
+      });
+      $sclink.css({
+        marginTop: -1
+      });
+    }
   });
 
   /**
@@ -352,7 +371,10 @@
    *   Flash the tile-frame to indicate it's been added.
    */
   function populateViewportPost($article, post, prepend, flash) {
-      var animate = (post.imageURL != null || post.gallery),
+      var animate = (post.imageURL != null ||
+                     post.gallery ||
+                     post.embed ||
+                     post.gifVideo),
 
           $titleLink = $('<a>')
             .attr('href', post.contentURL)
@@ -386,12 +408,34 @@
 
       if (post.embed) {
         $sectionLink
+          .addClass('sectionLink')
           .css({
             position: 'absolute'
           });
 
         var $embed = $('<iframe>')
+          .addClass('embed')
           .attr('src', post.embedURL)
+          .css({
+            height: gridView.boxSize,
+            position: 'absolute',
+            width: gridView.boxSize
+          });
+
+        $section
+          .append($embed)
+          .append($sectionLink);
+      }
+      else if (post.gifVideo) {
+        $sectionLink
+          .addClass('sectionLink')
+          .css({
+            position: 'absolute',
+          });
+
+        var $embed = $('<iframe>')
+          .addClass('embed')
+          .attr('src', post.gifvURL)
           .css({
             height: gridView.boxSize,
             position: 'absolute',
@@ -519,6 +563,9 @@
               }, gridView.animSpeedOut);
             });
 
+      if (post.embed) $tile.attr('data-is-embed', true);
+      if (post.gifVideo) $tile.attr('data-is-gifv', true);
+
       if (post.imageURL != null ||
           post.gallery) {
         $tile
@@ -527,6 +574,11 @@
             backgroundImage: 'url("' + (post.imageURL == null ? gridView.imgurGallery : post.imageURL) + '")'
           });
 
+        $sectionLink.attr('href', (post.imageURL == null ? post.contentURL : post.imageURL));
+      }
+      else if (post.embed ||
+               post.gifVideo) {
+        $tile.addClass('imageTile');
         $sectionLink.attr('href', (post.imageURL == null ? post.contentURL : post.imageURL));
       }
       else {
